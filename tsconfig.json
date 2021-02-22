@@ -8,8 +8,9 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "noStrictGenericChecks": true,
+    "skipLibCheck": true,
     "target": "es2017",
     "jsx": "react"
   },
-  "include": ["./app/**/*"]
+  "include": ["./app/**/*", "custom-tyings.d.ts"]
 }

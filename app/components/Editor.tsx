@@ -5,12 +5,8 @@ import { match, Redirect, Route } from 'react-router-dom'
 import { goBack, replace } from 'react-router-redux'
 import { Dispatch } from 'redux'
 import { StageConfig, StageDifficulty, State, TankRecord } from '../types/index'
-import {
-  defaultEnemiesConfig,
-  MapItem,
-  MapItemType,
-  StageConfigConverter,
-} from '../types/StageConfig'
+import { defaultBotsConfig, MapItem, MapItemType, StageConfigConverter } from '../types/StageConfig'
+import * as actions from '../utils/actions'
 import { add, dec, inc } from '../utils/common'
 import { BLOCK_SIZE as B, FIELD_BLOCK_SIZE as FBZ, ZOOM_LEVEL } from '../utils/constants'
 import AreaButton from './AreaButton'
@@ -77,7 +73,7 @@ const positionMap = {
 
 export interface EditorProps {
   view: string
-  dispatch: Dispatch<State>
+  dispatch: Dispatch
   initialCotnent: StageConfig
   stages: List<StageConfig>
   popupHandle: PopupHandle
@@ -92,7 +88,7 @@ class Editor extends React.Component<EditorProps> {
 
     name: '',
     difficulty: 1 as StageDifficulty,
-    enemies: defaultEnemiesConfig,
+    bots: defaultBotsConfig,
 
     itemList: Repeat(new MapItem(), FBZ ** 2).toList(),
     itemType: 'X' as MapItemType,
@@ -102,10 +98,8 @@ class Editor extends React.Component<EditorProps> {
 
   componentDidMount() {
     // custom 在这里不需要取出来，因为 custom 永远为 true
-    const { name, difficulty, itemList, enemies } = StageConfigConverter.s2e(
-      this.props.initialCotnent,
-    )
-    this.setState({ name, difficulty, itemList, enemies })
+    const { name, difficulty, itemList, bots } = StageConfigConverter.s2e(this.props.initialCotnent)
+    this.setState({ name, difficulty, itemList, bots: bots })
   }
 
   getT(event: React.MouseEvent<SVGSVGElement>) {
@@ -153,14 +147,20 @@ class Editor extends React.Component<EditorProps> {
   }
 
   onMouseDown = (event: React.MouseEvent<SVGSVGElement>) => {
-    const { view, popupHandle: { popup } } = this.props
+    const {
+      view,
+      popupHandle: { popup },
+    } = this.props
     if (view === 'map' && popup == null && this.getT(event) !== -1) {
       this.pressed = true
     }
   }
 
   onMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
-    const { view, popupHandle: { popup } } = this.props
+    const {
+      view,
+      popupHandle: { popup },
+    } = this.props
     const { t: lastT } = this.state
     const t = this.getT(event)
     if (t !== lastT) {
@@ -172,7 +172,10 @@ class Editor extends React.Component<EditorProps> {
   }
 
   onMouseUp = (event: React.MouseEvent<SVGSVGElement>) => {
-    const { view, popupHandle: { popup } } = this.props
+    const {
+      view,
+      popupHandle: { popup },
+    } = this.props
     this.pressed = false
     if (view === 'map' && popup == null) {
       this.setAsCurrentItem(this.getT(event))
@@ -194,39 +197,42 @@ class Editor extends React.Component<EditorProps> {
     this.setState({ difficulty: difficulty - 1 })
   }
 
-  onIncEnemyLevel = (index: number) => {
-    const { enemies } = this.state
+  onIncBotLevel = (index: number) => {
+    const { bots } = this.state
     this.setState({
-      enemies: enemies.update(index, e => e.incTankLevel()),
+      bots: bots.update(index, e => e.incTankLevel()),
     })
   }
 
-  onDecEnemyLevel = (index: number) => {
-    const { enemies } = this.state
+  onDecBotLevel = (index: number) => {
+    const { bots } = this.state
     this.setState({
-      enemies: enemies.update(index, e => e.decTankLevel()),
+      bots: bots.update(index, e => e.decTankLevel()),
     })
   }
 
-  onIncEnemyCount = (index: number) => {
-    const { enemies } = this.state
+  onIncBotCount = (index: number) => {
+    const { bots } = this.state
     this.setState({
-      enemies: enemies.updateIn([index, 'count'], inc(1)),
+      bots: bots.updateIn([index, 'count'], inc(1)),
     })
   }
 
-  onDecEnemyCount = (index: number) => {
-    const { enemies } = this.state
+  onDecBotCount = (index: number) => {
+    const { bots } = this.state
     this.setState({
-      enemies: enemies.updateIn([index, 'count'], dec(1)),
+      bots: bots.updateIn([index, 'count'], dec(1)),
     })
   }
 
   /** 检查当前编辑器中的关卡配置是否合理. 返回 true 表示关卡配置合理 */
   async check() {
-    const { stages, popupHandle: { showAlertPopup, showConfirmPopup } } = this.props
-    const { name, enemies, itemList } = this.state
-    const totalEnemyCount = enemies.map(e => e.count).reduce(add)
+    const {
+      stages,
+      popupHandle: { showAlertPopup, showConfirmPopup },
+    } = this.props
+    const { name, bots, itemList } = this.state
+    const totalBotCount = bots.map(e => e.count).reduce(add)
 
     // 检查stageName
     if (name === '') {
@@ -241,9 +247,9 @@ class Editor extends React.Component<EditorProps> {
       return false
     }
 
-    // 检查enemies数量
-    if (totalEnemyCount === 0) {
-      await showAlertPopup('no enemy')
+    // 检查bots数量
+    if (totalBotCount === 0) {
+      await showAlertPopup('no bot.')
       return false
     }
 
@@ -262,8 +268,8 @@ class Editor extends React.Component<EditorProps> {
       }
     }
 
-    if (totalEnemyCount !== 20) {
-      const confirmed = await showConfirmPopup('total enemy count is not 20. continue?')
+    if (totalBotCount !== 20) {
+      const confirmed = await showConfirmPopup('total bot count is not 20. continue?')
       if (!confirmed) {
         return false
       }
@@ -274,7 +280,7 @@ class Editor extends React.Component<EditorProps> {
 
   onBack = async () => {
     const { dispatch } = this.props
-    dispatch<Action>({ type: 'SET_EDITOR_CONTENT', stage: this.getStage() })
+    dispatch(actions.setEditorContent(this.getStage()))
     dispatch(goBack())
   }
 
@@ -282,14 +288,16 @@ class Editor extends React.Component<EditorProps> {
     if (await this.check()) {
       const { dispatch } = this.props
       const stage = StageConfigConverter.e2s(Object.assign({ custom: true }, this.state))
-      dispatch<Action>({ type: 'SET_CUSTOM_STAGE', stage })
-      dispatch<Action>({ type: 'SYNC_CUSTOM_STAGES' })
+      dispatch(actions.setCustomStage(stage))
+      dispatch(actions.syncCustomStages())
       dispatch(replace('/list/custom'))
     }
   }
 
   onShowHelpInfo = async () => {
-    const { popupHandle: { showAlertPopup } } = this.props
+    const {
+      popupHandle: { showAlertPopup },
+    } = this.props
     await showAlertPopup('1. Choose an item type below.')
     await showAlertPopup('2. Click or pan in the left.')
     await showAlertPopup('3. After selecting Brick or Steel you can change the item shape')
@@ -414,8 +422,8 @@ class Editor extends React.Component<EditorProps> {
   }
 
   renderConfigView() {
-    const { enemies, name, difficulty, t } = this.state
-    const totalEnemyCount = enemies.map(e => e.count).reduce(add)
+    const { bots, name, difficulty, t } = this.state
+    const totalBotCount = bots.map(e => e.count).reduce(add)
 
     return (
       <g className="config-view">
@@ -446,31 +454,31 @@ class Editor extends React.Component<EditorProps> {
           onClick={this.onIncDifficulty}
         />
 
-        <Text content="enemies:" x={2 * B} y={4 * B} fill="#ccc" />
-        <g className="enemies-config" transform={`translate(${6 * B}, ${4 * B})`}>
-          {enemies.map(({ tankLevel, count }, index) => (
+        <Text content="bots:" x={2 * B} y={4 * B} fill="#ccc" />
+        <g className="bots-config" transform={`translate(${6 * B}, ${4 * B})`}>
+          {bots.map(({ tankLevel, count }, index) => (
             <g key={index} transform={`translate(0, ${1.5 * B * index})`}>
               <TextButton
                 content={'\u2190'}
                 x={0.25 * B}
                 y={0.25 * B}
                 disabled={tankLevel === 'basic'}
-                onClick={() => this.onDecEnemyLevel(index)}
+                onClick={() => this.onDecBotLevel(index)}
               />
-              <Tank tank={new TankRecord({ side: 'ai', level: tankLevel, x: B, y: 0 })} />
+              <Tank tank={new TankRecord({ side: 'bot', level: tankLevel, x: B, y: 0 })} />
               <TextButton
                 content={'\u2192'}
                 x={2.25 * B}
                 y={0.25 * B}
                 disabled={tankLevel === 'armor'}
-                onClick={() => this.onIncEnemyLevel(index)}
+                onClick={() => this.onIncBotLevel(index)}
               />
               <TextButton
                 content="-"
                 x={3.75 * B}
                 y={0.25 * B}
                 disabled={count === 0}
-                onClick={() => this.onDecEnemyCount(index)}
+                onClick={() => this.onDecBotCount(index)}
               />
               <Text content={String(count).padStart(2, '0')} x={4.5 * B} y={0.25 * B} fill="#ccc" />
               <TextButton
@@ -478,13 +486,13 @@ class Editor extends React.Component<EditorProps> {
                 x={5.75 * B}
                 y={0.25 * B}
                 disabled={count === 99}
-                onClick={() => this.onIncEnemyCount(index)}
+                onClick={() => this.onIncBotCount(index)}
               />
             </g>
           ))}
           <Text content="total:" x={0.25 * B} y={6 * B} fill="#ccc" />
           <Text
-            content={String(totalEnemyCount).padStart(2, '0')}
+            content={String(totalBotCount).padStart(2, '0')}
             x={4.5 * B}
             y={6 * B}
             fill="#ccc"
@@ -495,7 +503,11 @@ class Editor extends React.Component<EditorProps> {
   }
 
   render() {
-    const { dispatch, view, popupHandle: { popup } } = this.props
+    const {
+      dispatch,
+      view,
+      popupHandle: { popup },
+    } = this.props
 
     return (
       <Screen

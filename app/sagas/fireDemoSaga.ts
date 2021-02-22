@@ -1,7 +1,8 @@
-import { all, fork, put, take } from 'redux-saga/effects'
-import { delay } from 'redux-saga/utils'
-import { PlayerRecord, TankRecord } from '../types'
+import { all, fork, put, take, delay } from 'redux-saga/effects'
+import { TankRecord } from '../types'
 import { StageConfigConverter } from '../types/StageConfig'
+import * as actions from '../utils/actions'
+import { A, Action } from '../utils/actions'
 import { getNextId } from '../utils/common'
 import { BLOCK_SIZE as B } from '../utils/constants'
 import bulletsSaga from './bulletsSaga'
@@ -13,12 +14,12 @@ import tickEmitter from './tickEmitter'
 
 const always = (v: any) => () => v
 
-function* demoHumanController(playerName: string) {
+function* demoPlayerContronller(tankId: TankId) {
   let fire = false
 
   yield all([
-    directionController(playerName, always(null)),
-    fireController(playerName, shouldFire),
+    directionController(tankId, always(null)),
+    fireController(tankId, shouldFire),
     setFireToTrueEvery3Seconds(),
   ])
 
@@ -38,24 +39,10 @@ function* demoHumanController(playerName: string) {
   }
 }
 
-export function* demohumanPalyerSaga(playerName: string, tankPrototype: TankRecord) {
-  yield put<Action>({
-    type: 'ADD_PLAYER',
-    player: new PlayerRecord({
-      playerName,
-      lives: 3,
-      side: 'human',
-    }),
-  })
-  yield fork(demoHumanController, playerName)
-
+export function* demoPlayerSaga(tankPrototype: TankRecord) {
   const tankId = getNextId('tank')
   yield spawnTank(tankPrototype.set('tankId', tankId), 2)
-  yield put<Action.ActivatePlayer>({
-    type: 'ACTIVATE_PLAYER',
-    playerName,
-    tankId,
-  })
+  yield fork(demoPlayerContronller, tankId)
 }
 
 export const demoStage = StageConfigConverter.r2s({
@@ -77,7 +64,7 @@ export const demoStage = StageConfigConverter.r2s({
     'X  X  X  X  X  X  X  X  X  X  X  X  X  ',
     'X  X  X  X  X  X  X  X  X  X  X  X  E  ',
   ],
-  enemies: [],
+  bots: [],
 })
 
 export function* demoAIMasterSaga() {
@@ -87,14 +74,14 @@ export function* demoAIMasterSaga() {
       tankId,
       x: 5.5 * B,
       y: 0.5 * B,
-      side: 'ai',
+      side: 'bot',
       level: 'basic',
       hp: 1,
       direction: 'left',
     })
     yield spawnTank(tank, 1.5)
-    yield take((action: Action) => action.type === 'HIT' && action.targetTank.tankId === tankId)
-    yield put<Action>({ type: 'DEACTIVATE_TANK', tankId })
+    yield take((action: Action) => action.type === A.Hit && action.targetTank.tankId === tankId)
+    yield put(actions.setTankToDead(tankId))
     yield explosionFromTank(tank)
     yield delay(7e3)
   }
@@ -103,25 +90,11 @@ export function* demoAIMasterSaga() {
 export default function* fireDemoSaga() {
   yield fork(tickEmitter, { slow: 5, bindESC: true })
   yield fork(bulletsSaga)
-  yield put<Action>({ type: 'LOAD_STAGE_MAP', stage: demoStage })
+  yield put(actions.loadStageMap(demoStage))
   yield fork(demoAIMasterSaga)
-  const baseTank = new TankRecord({
-    active: true,
-    side: 'human',
-    level: 'basic',
-    direction: 'right',
-  })
-  yield fork(
-    demohumanPalyerSaga,
-    'yellow-player',
-    baseTank.set('y', 0.5 * B).set('color', 'yellow'),
-  )
-  yield fork(
-    demohumanPalyerSaga,
-    'green-player',
-    baseTank
-      .set('y', 3.5 * B)
-      .set('color', 'green')
-      .set('level', 'fast'),
-  )
+  const baseTank = new TankRecord({ direction: 'right' })
+  const yelloTank = baseTank.merge({ y: 0.5 * B, color: 'yellow' })
+  const greenTank = baseTank.merge({ y: 3.5 * B, color: 'green', level: 'fast' })
+  yield fork(demoPlayerSaga, yelloTank)
+  yield fork(demoPlayerSaga, greenTank)
 }

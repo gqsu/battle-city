@@ -29,10 +29,31 @@ const AboutEditor = () => (
 
 const AboutGame = () => (
   <div>
-    <p className="bold">WASD 控制坦克方向</p>
-    <p className="bold">J 控制开火</p>
-    <p className="bold">ESC 暂停游戏</p>
-    <p>后退以返回关卡选择页面</p>
+    <p>
+      <b>ESC</b>
+      ：暂停游戏
+      <br />
+      <b>后退</b>
+      ：返回到关卡选择页面
+    </p>
+    <p>
+      玩家一
+      <br />
+      <b>WASD</b>
+      ：控制方向
+      <br />
+      <b>J</b>
+      ：控制开火
+    </p>
+    <p>
+      玩家二
+      <br />
+      <b>方向键</b>
+      ：控制方向
+      <br />
+      <b>/</b>
+      ：控制开火
+    </p>
   </div>
 )
 
@@ -48,8 +69,8 @@ const AboutChoose = () => (
 const AboutTitle = () => (
   <div>
     <p>
-      目前只支持单人进行游戏。请使用最新的 chrome 浏览器，并适当调整浏览器的缩放比例（1080P 下设置为
-      200% 缩放），以获得最好的游戏体验。
+      请使用最新的 chrome 浏览器，并适当调整浏览器的缩放比例（1080P 下设置为 200%
+      缩放），以获得最好的游戏体验。
     </p>
     <p className="bold">W 上一个选项</p>
     <p className="bold">S 下一个选项</p>

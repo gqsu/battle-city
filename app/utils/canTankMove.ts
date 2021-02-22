@@ -96,7 +96,10 @@ function isTankCollidedWithOtherTanks(
 }
 
 export default function canTankMove(state: State, tank: TankRecord, threshhold = -0.01) {
-  const { tanks, map: { bricks, steels, rivers, eagle, restrictedAreas } } = state
+  const {
+    tanks,
+    map: { bricks, steels, rivers, eagle, restrictedAreas },
+  } = state
   const tankRect = asRect(tank)
 
   // 判断是否位于战场内
@@ -124,7 +127,7 @@ export default function canTankMove(state: State, tank: TankRecord, threshhold =
   }
 
   // 判断是否与其他坦克相碰撞
-  const activeTanks = tanks.filter(t => t.active)
+  const activeTanks = tanks.filter(t => t.alive)
   if (isTankCollidedWithOtherTanks(activeTanks, tank, tankRect, threshhold)) {
     return false
   }

@@ -19,8 +19,8 @@ export class GameoverSceneContent extends React.PureComponent<{ onRestart?: () =
         <defs>
           <pattern
             id="pattern-brickwall"
-            width={size * 2 / scale}
-            height={size * 2 / scale}
+            width={(size * 2) / scale}
+            height={(size * 2) / scale}
             patternUnits="userSpaceOnUse"
           >
             <g transform={`scale(${1 / scale})`}>
@@ -33,8 +33,18 @@ export class GameoverSceneContent extends React.PureComponent<{ onRestart?: () =
         </defs>
         <rect fill="#000000" x={0} y={0} width={16 * B} height={15 * B} />
         <g transform={`scale(${scale})`}>
-          <Text content="game" x={4 * B / scale} y={4 * B / scale} fill="url(#pattern-brickwall)" />
-          <Text content="over" x={4 * B / scale} y={7 * B / scale} fill="url(#pattern-brickwall)" />
+          <Text
+            content="game"
+            x={(4 * B) / scale}
+            y={(4 * B) / scale}
+            fill="url(#pattern-brickwall)"
+          />
+          <Text
+            content="over"
+            x={(4 * B) / scale}
+            y={(7 * B) / scale}
+            fill="url(#pattern-brickwall)"
+          />
         </g>
         <g transform={`translate(${5.75 * B}, ${13 * B}) scale(0.5)`}>
           <TextButton
@@ -50,9 +60,15 @@ export class GameoverSceneContent extends React.PureComponent<{ onRestart?: () =
   }
 }
 
-class GameoverScene extends React.PureComponent<{ dispatch: Dispatch<State>; game: GameRecord }> {
+interface GameoverSceneProps {
+  dispatch: Dispatch
+  game: GameRecord
+  router: any
+}
+
+class GameoverScene extends React.PureComponent<GameoverSceneProps> {
   componentDidMount() {
-    document.addEventListener('keypress', this.handleKeyPress)
+    document.addEventListener('keydown', this.onKeyDown)
     const { game, dispatch } = this.props
     if (game.status === 'idle') {
       dispatch(replace('/'))
@@ -61,21 +77,22 @@ class GameoverScene extends React.PureComponent<{ dispatch: Dispatch<State>; gam
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keypress', this.handleKeyPress)
+    document.removeEventListener('keydown', this.onKeyDown)
   }
 
-  handleKeyPress = (event: KeyboardEvent) => {
-    if (event.key === 'r') {
+  onKeyDown = (event: KeyboardEvent) => {
+    if (event.code === 'KeyR') {
       this.onRestart()
     }
   }
 
   onRestart = () => {
-    const { game, dispatch } = this.props
+    const { game, dispatch, router } = this.props
+    const search = router.location.search
     if (game.lastStageName) {
-      dispatch(replace(`/choose/${game.lastStageName}`))
+      dispatch(replace(`/choose/${game.lastStageName}${search}`))
     } else {
-      dispatch(replace(`/choose`))
+      dispatch(replace(`/choose${search}`))
     }
   }
 
@@ -88,4 +105,6 @@ class GameoverScene extends React.PureComponent<{ dispatch: Dispatch<State>; gam
   }
 }
 
-export default connect((state: State) => ({ game: state.game }))(GameoverScene)
+const mapStateToProps = (state: State) => ({ game: state.game, router: state.router })
+
+export default connect(mapStateToProps)(GameoverScene)

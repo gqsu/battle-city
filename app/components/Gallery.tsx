@@ -7,8 +7,8 @@ import saga from '../hocs/saga'
 import rootReducer, { State, time } from '../reducers'
 import game, { GameRecord } from '../reducers/game'
 import tanks from '../reducers/tanks'
+import animateStatistics from '../sagas/animateStatistics'
 import fireDemoSaga from '../sagas/fireDemoSaga'
-import statistics from '../sagas/stageStatistics'
 import tickEmitter from '../sagas/tickEmitter'
 import { PlayerRecord, PowerUpRecord, TankRecord } from '../types'
 import { BLOCK_SIZE as B } from '../utils/constants'
@@ -63,23 +63,23 @@ namespace GalleryContent {
         <g>
           <Text x={8} y={8} content="tanks" fill="#dd2664" />
           <Transform y={32}>
-            <GrayText x={8} y={8} content="human" />
+            <GrayText x={8} y={8} content="player" />
             <GrayText x={8} y={20} content="tanks" />
             <Transform x={64}>
-              <X2Tank x={48 * 0} y={0} side="human" level="basic" color="yellow" />
-              <X2Tank x={48 * 1} y={0} side="human" level="fast" color="yellow" />
-              <X2Tank x={48 * 2} y={0} side="human" level="power" color="yellow" />
-              <X2Tank x={48 * 3} y={0} side="human" level="armor" color="yellow" />
+              <X2Tank x={48 * 0} y={0} side="player" level="basic" color="yellow" />
+              <X2Tank x={48 * 1} y={0} side="player" level="fast" color="yellow" />
+              <X2Tank x={48 * 2} y={0} side="player" level="power" color="yellow" />
+              <X2Tank x={48 * 3} y={0} side="player" level="armor" color="yellow" />
             </Transform>
           </Transform>
           <Transform y={80}>
-            <GrayText x={8} y={8} content="AI" />
+            <GrayText x={8} y={8} content="bot" />
             <GrayText x={8} y={20} content="tanks" />
             <Transform x={64}>
-              <X2Tank x={48 * 0} y={0} side="ai" level="basic" color="silver" />
-              <X2Tank x={48 * 1} y={0} side="ai" level="fast" color="silver" />
-              <X2Tank x={48 * 2} y={0} side="ai" level="power" color="silver" />
-              <X2Tank x={48 * 3} y={0} side="ai" level="armor" color="silver" />
+              <X2Tank x={48 * 0} y={0} side="bot" level="basic" color="silver" />
+              <X2Tank x={48 * 1} y={0} side="bot" level="fast" color="silver" />
+              <X2Tank x={48 * 2} y={0} side="bot" level="power" color="silver" />
+              <X2Tank x={48 * 3} y={0} side="bot" level="armor" color="silver" />
             </Transform>
           </Transform>
           <Transform y={128}>
@@ -87,10 +87,10 @@ namespace GalleryContent {
             <GrayText x={8} y={12} content="tank" />
             <GrayText x={8} y={24} content="hp 1-4" />
             <Transform x={64}>
-              <X2Tank x={48 * 0} y={0} side="ai" level="armor" hp={1} />
-              <X2Tank x={48 * 1} y={0} side="ai" level="armor" hp={2} />
-              <X2Tank x={48 * 2} y={0} side="ai" level="armor" hp={3} />
-              <X2Tank x={48 * 3} y={0} side="ai" level="armor" hp={4} />
+              <X2Tank x={48 * 0} y={0} side="bot" level="armor" hp={1} />
+              <X2Tank x={48 * 1} y={0} side="bot" level="armor" hp={2} />
+              <X2Tank x={48 * 2} y={0} side="bot" level="armor" hp={3} />
+              <X2Tank x={48 * 3} y={0} side="bot" level="armor" hp={4} />
             </Transform>
           </Transform>
           <Transform y={176}>
@@ -98,10 +98,10 @@ namespace GalleryContent {
             <GrayText x={8} y={12} content="with" />
             <GrayText x={8} y={24} content="powerup" />
             <Transform x={64}>
-              <X2Tank x={48 * 0} y={0} side="ai" level="basic" withPowerUp />
-              <X2Tank x={48 * 1} y={0} side="ai" level="fast" withPowerUp />
-              <X2Tank x={48 * 2} y={0} side="ai" level="power" withPowerUp />
-              <X2Tank x={48 * 3} y={0} side="ai" level="armor" withPowerUp />
+              <X2Tank x={48 * 0} y={0} side="bot" level="basic" withPowerUp />
+              <X2Tank x={48 * 1} y={0} side="bot" level="fast" withPowerUp />
+              <X2Tank x={48 * 2} y={0} side="bot" level="power" withPowerUp />
+              <X2Tank x={48 * 3} y={0} side="bot" level="armor" withPowerUp />
             </Transform>
           </Transform>
         </g>
@@ -170,11 +170,28 @@ namespace GalleryContent {
     }
   }
 
-  const player1KillInfo = Map([['basic', 10], ['fast', 4], ['power', 4], ['armor', 2]])
+  const player1KillInfo = Map<TankLevel, number>([
+    ['basic', 10],
+    ['fast', 4],
+    ['power', 0],
+    ['armor', 1],
+  ])
+  const player2KillInfo = Map<TankLevel, number>([
+    ['basic', 4],
+    ['fast', 0],
+    ['power', 2],
+    ['armor', 1],
+  ])
   const StatisticsPreloadedState = {
-    game: new GameRecord({ killInfo: Map({ 'player-1': player1KillInfo as any }) }),
+    game: new GameRecord({
+      currentStageName: 'gallery',
+      killInfo: Map<PlayerName, typeof player1KillInfo>([
+        ['player-1', player1KillInfo],
+        ['player-2', player2KillInfo],
+      ]),
+    }),
   }
-  @saga(ticked(statistics), combineReducers({ game }), StatisticsPreloadedState)
+  @saga(ticked(animateStatistics), combineReducers({ game }), StatisticsPreloadedState)
   export class Statistics extends React.PureComponent {
     render() {
       const { game } = this.props as { game: GameRecord }
@@ -182,7 +199,12 @@ namespace GalleryContent {
         <g>
           <Text x={8} y={8} content="Statistics" fill="#dd2664" />
           <Transform k={0.8} x={25} y={32}>
-            <StatisticsSceneContent game={game} />
+            <StatisticsSceneContent
+              game={game}
+              inMultiPlayersMode={true}
+              player1Score={1000}
+              player2Score={12345}
+            />
           </Transform>
         </g>
       )
@@ -202,10 +224,8 @@ namespace GalleryContent {
     }
   }
 
-  const players = Map({
-    'player-1': new PlayerRecord({ playerName: 'player-1', lives: 3 }),
-    'player-2': new PlayerRecord({ playerName: 'player-2', lives: 1 }),
-  })
+  const player1 = new PlayerRecord({ playerName: 'player-1', lives: 3 })
+  const player2 = new PlayerRecord({ playerName: 'player-2', lives: 1 })
 
   export class Misc extends React.PureComponent {
     render() {
@@ -219,7 +239,13 @@ namespace GalleryContent {
             </Transform>
             <Transform y={16}>
               <rect width={16 + 4} height={128 + 4} fill="#757575" />
-              <HUDContent players={players} remainingEnemyCount={17} show />
+              <HUDContent
+                player1={player1}
+                player2={player2}
+                remainingBotCount={17}
+                show
+                inMultiPlayersMode
+              />
             </Transform>
           </Transform>
           <Transform x={96} y={32}>

@@ -1,7 +1,7 @@
 import { List } from 'immutable'
 import StageConfig from '../types/StageConfig'
 
-const requireStage = (require as any).context('stages', false, /\.json/)
+const requireStage = (require as any).context('.', false, /\.json/)
 const filenames = List<string>(requireStage.keys())
 
 let defaultStages = filenames
@@ -31,7 +31,7 @@ if (DEV.TEST_STAGE) {
         'X  X  X  X  X  Xf Tf Tf X  X  X  X  X  ',
         'X  X  X  X  X  X  E  Tf X  X  X  X  X  ',
       ],
-      enemies: ['1*basic'],
+      bots: ['1*basic'],
     }),
   )
 }

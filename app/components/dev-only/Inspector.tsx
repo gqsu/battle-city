@@ -1,7 +1,8 @@
 import _ from 'lodash'
 import React from 'react'
 import { connect } from 'react-redux'
-import { ExplosionsMap, PlayersMap, ScoresMap, State, TankRecord, TanksMap } from '../../types'
+import { State, TankRecord, TanksMap } from '../../types'
+import * as selectors from '../../utils/selectors'
 
 let connectedInspector: any = () => null as any
 
@@ -14,33 +15,24 @@ if (DEV.INSPECTOR) {
       .update('helmetDuration', Math.round)
   }
 
-  type View = 'scores' | 'tanks' | 'players' | 'explosions'
+  type View = 'players' | 'tanks' | 'explosions'
 
   interface S {
     view: View
-    allScores: ScoresMap
     allTanks: TanksMap
-    allPlayers: PlayersMap
-    allExplosions: ExplosionsMap
   }
 
   class Inspector extends React.PureComponent<State, S> {
     state = {
-      view: 'scores' as View,
-      allScores: this.props.scores,
+      view: 'players' as View,
       allTanks: this.props.tanks.map(roundTank),
-      allPlayers: this.props.players,
-      allExplosions: this.props.explosions,
     }
 
     componentWillReceiveProps(nextProps: State) {
-      const { scores, tanks, players, explosions } = this.props
-      const { allScores, allTanks, allPlayers, allExplosions } = this.state
+      const { tanks } = nextProps
+      const { allTanks } = this.state
       this.setState({
-        allScores: allScores.merge(scores),
         allTanks: allTanks.merge(tanks.map(roundTank)),
-        allPlayers: allPlayers.merge(players),
-        allExplosions: allExplosions.merge(explosions),
       })
     }
 
@@ -55,45 +47,37 @@ if (DEV.INSPECTOR) {
     }
 
     renderPlayersView() {
-      const { players } = this.props
-      const { allPlayers } = this.state
+      const { player1, player2 } = this.props
+      const inMultiPlayersMode = selectors.isInMultiPlayersMode(this.props)
       return (
         <div className="players-view">
-          {allPlayers.isEmpty() ? <p> EMPTY PLAYERS </p> : null}
-          {allPlayers
-            .map(p => (
-              <pre
-                key={p.playerName}
-                style={{
-                  textDecoration: players.has(p.playerName) ? 'none' : 'line-through',
-                }}
-              >
-                {JSON.stringify(p, null, 2)}
-              </pre>
-            ))
-            .toArray()}
+          <pre>{inMultiPlayersMode ? '多人模式' : '单人模式'}</pre>
+          <pre>{JSON.stringify(player1, null, 2)}</pre>
+          {inMultiPlayersMode && <pre>{JSON.stringify(player2, null, 2)}</pre>}
         </div>
       )
     }
 
     renderExplosionsView() {
       const { explosions } = this.props
-      const { allExplosions } = this.state
       return (
         <div className="explosions-view">
-          {allExplosions.isEmpty() ? <p>EMPTY EXPLOSIONS</p> : null}
-          {allExplosions
-            .map(exp => (
-              <pre
-                key={exp.explosionId}
-                style={{
-                  textDecoration: explosions.has(exp.explosionId) ? 'none' : 'line-through',
-                }}
-              >
-                {JSON.stringify(exp, null, 2)}
-              </pre>
-            ))
-            .toArray()}
+          {explosions.isEmpty() ? (
+            <p>EMPTY EXPLOSIONS</p>
+          ) : (
+            explosions
+              .map(exp => (
+                <pre
+                  key={exp.explosionId}
+                  style={{
+                    textDecoration: explosions.has(exp.explosionId) ? 'none' : 'line-through',
+                  }}
+                >
+                  {JSON.stringify(exp, null, 2)}
+                </pre>
+              ))
+              .valueSeq()
+          )}
         </div>
       )
     }
@@ -115,29 +99,7 @@ if (DEV.INSPECTOR) {
                 {JSON.stringify(t, null, 2)}
               </pre>
             ))
-            .toArray()}
-        </div>
-      )
-    }
-
-    renderScoresView() {
-      const { scores } = this.props
-      const { allScores } = this.state
-      return (
-        <div>
-          {allScores.isEmpty() ? <p>EMPTY</p> : null}
-          {allScores
-            .map(s => (
-              <pre
-                key={s.scoreId}
-                style={{
-                  textDecoration: scores.has(s.scoreId) ? 'none' : 'line-through',
-                }}
-              >
-                {JSON.stringify(s, null, 2)}
-              </pre>
-            ))
-            .toArray()}
+            .valueSeq()}
         </div>
       )
     }
@@ -147,42 +109,29 @@ if (DEV.INSPECTOR) {
       return (
         <div
           style={{
-            maxHeight: '100vh',
+            width: 240,
+            maxHeight: 480,
             overflow: 'auto',
             fontSize: '12px',
-            border: '1px solid red',
+            border: '1px dashed #ccc',
           }}
         >
-          <div style={{ display: 'flex' }}>
-            <button
-              style={{ color: view === 'scores' ? 'green' : 'inherit' }}
-              onClick={() => this.setState({ view: 'scores' })}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            view:
+            <select
+              value={this.state.view}
+              onChange={e => this.setState({ view: e.target.value as View })}
             >
-              Score
+              <option value="players">players</option>
+              <option value="tanks">tanks</option>
+              <option value="explosions">explosions</option>
+            </select>
+            <button style={{ marginLeft: 8 }} onClick={this.debugger}>
+              debugger
             </button>
-            <button
-              style={{ color: view === 'tanks' ? 'green' : 'inherit' }}
-              onClick={() => this.setState({ view: 'tanks' })}
-            >
-              Tanks
-            </button>
-            <button
-              style={{ color: view === 'players' ? 'green' : 'inherit' }}
-              onClick={() => this.setState({ view: 'players' })}
-            >
-              Players
-            </button>
-            <button
-              style={{ color: view === 'explosions' ? 'green' : 'inherit' }}
-              onClick={() => this.setState({ view: 'explosions' })}
-            >
-              Explosions
-            </button>
-            <button onClick={this.debugger}>debugger</button>
           </div>
-          {view === 'scores' ? this.renderScoresView() : null}
-          {view === 'tanks' ? this.renderTanksView() : null}
           {view === 'players' ? this.renderPlayersView() : null}
+          {view === 'tanks' ? this.renderTanksView() : null}
           {view === 'explosions' ? this.renderExplosionsView() : null}
         </div>
       )

@@ -1,22 +1,59 @@
 import _ from 'lodash'
-import { State, TankFireInfo } from '../types'
+import { PlayerRecord, State, TankFireInfo } from '../types'
 import { asRect, testCollide } from './common'
-import { BLOCK_SIZE as B, FIELD_BLOCK_SIZE as FBZ, TANK_SIZE } from './constants'
+import {
+  BLOCK_SIZE as B,
+  FIELD_BLOCK_SIZE as FBZ,
+  MULTI_PLAYERS_SEARCH_KEY,
+  TANK_SIZE,
+} from './constants'
 import IndexHelper from './IndexHelper'
 import values from './values'
 
-// 选取玩家的坦克对象. 如果玩家当前没有坦克, 则返回null
-export const playerTank = (state: State, playerName: string) => {
-  const player = state.players.get(playerName)
-  const { active, activeTankId } = player
-  if (!active) {
-    return null
-  }
-  return state.tanks.get(activeTankId)
+export const isInMultiPlayersMode = (state: State) => {
+  const params = new URLSearchParams(state.router.location.search)
+  return params.has(MULTI_PLAYERS_SEARCH_KEY)
 }
 
-export function fireInfo(state: State, playerName: string): TankFireInfo {
-  const tank = playerTank(state, playerName)
+function isPlayerDead(player: PlayerRecord) {
+  return player.lives === 0 && !player.isActive() && !player.isSpawningTank
+}
+
+export const isAllPlayerDead = (state: State) => {
+  const inMultiPlayersMode = isInMultiPlayersMode(state)
+  if (inMultiPlayersMode) {
+    return isPlayerDead(state.player1) && isPlayerDead(state.player2)
+  } else {
+    return isPlayerDead(state.player1)
+  }
+}
+
+export const isAllBotDead = ({ tanks, game }: State) => {
+  const noAliveBotTank = tanks.filter(t => t.side === 'bot').every(t => !t.alive)
+  return noAliveBotTank && game.remainingBots.isEmpty() && !game.isSpawningBotTank
+}
+
+export const player = (state: State, playerName: PlayerName) => {
+  return playerName === 'player-1' ? state.player1 : state.player2
+}
+
+export const tank = (state: State, tankId: TankId) => {
+  return state.tanks.get(tankId)
+}
+
+/** 根据 tankId 找到对应的 player-name */
+export function playerName(state: State, tankId: TankId): PlayerName {
+  if (state.player1.activeTankId === tankId) {
+    return 'player-1'
+  } else if (state.player2.activeTankId === tankId) {
+    return 'player-2'
+  } else {
+    return null
+  }
+}
+
+export function fireInfo(state: State, tankId: TankId): TankFireInfo {
+  const tank = state.tanks.get(tankId)
   const { bullets } = state
   const bulletCount = bullets.filter(b => b.tankId === tank.tankId).count()
   const canFire = bulletCount < values.bulletLimit(tank) && tank.cooldown <= 0
@@ -29,17 +66,16 @@ export function fireInfo(state: State, playerName: string): TankFireInfo {
 
 export const availableSpawnPosition = (state: State): Rect => {
   const result: Rect[] = []
-  const activeTanks = state.tanks.filter(t => t.active)
+  const aliveTanks = state.tanks.filter(t => t.alive)
   outer: for (const x of [0, 6 * B, 12 * B]) {
     const option = { x, y: 0, width: TANK_SIZE, height: TANK_SIZE }
-    for (const tank of activeTanks.values()) {
+    for (const tank of aliveTanks.values()) {
       if (testCollide(option, asRect(tank))) {
         continue outer
       }
     }
     result.push(option)
   }
-  // TODO 需要考虑坦克默认生成的三个地点都被占用的情况
   return _.sample(result)
 }
 

@@ -1,17 +1,17 @@
-import { put, select } from 'redux-saga/effects'
+import { put, select, take } from 'redux-saga/effects'
 import { TankRecord } from '../types'
-import { waitFor } from '../utils/common'
+import * as actions from '../utils/actions'
 import * as selectors from '../utils/selectors'
-import AITankCtx from './AITankCtx'
+import Bot from './Bot'
 import { logAI } from './logger'
 import { getTankSpot } from './spot-utils'
 
 // TODO 可以考虑「截断过长的路径」
-export default function* followPath(ctx: AITankCtx, path: number[]) {
+export default function* followPath(ctx: Bot, path: number[]) {
   DEV.LOG_AI && logAI('start-follow-path')
   try {
-    yield put<Action>({ type: 'SET_AI_TANK_PATH', playerName: ctx.playerName, path })
-    const tank: TankRecord = yield select(selectors.playerTank, ctx.playerName)
+    yield put(actions.setAITankPath(ctx.tankId, path))
+    const tank: TankRecord = yield select(selectors.tank, ctx.tankId)
     DEV.ASSERT && console.assert(tank != null)
     const start = getTankSpot(tank)
     let index = path.indexOf(start)
@@ -28,9 +28,9 @@ export default function* followPath(ctx: AITankCtx, path: number[]) {
       }
       index += step
       yield* ctx.moveTo(path[index])
-      yield waitFor(ctx.noteEmitter, 'reach')
+      yield take(ctx.noteChannel, 'reach')
     }
   } finally {
-    yield put<Action>({ type: 'REMOVE_AI_TANK_PATH', playerName: ctx.playerName })
+    yield put(actions.removeAITankPath(ctx.tankId))
   }
 }

@@ -109,7 +109,7 @@ export class BattleField extends React.PureComponent {
 优化二： 经过优化一之后游戏在**短时间内生成大量组件**的情况下仍会出现掉帧的现象，例如坦克爆炸效果出现的时候。优化一避免了组件更新时重复渲染，但无法优化组件加载时的初次渲染过程，当组件复杂的时候，组件初次渲染就会有较大的开销。[这篇文章中提到了使用离屏画布提升 canvas 性能](https://www.html5rocks.com/zh/tutorials/canvas/performance/)，优化二的思路也是类似：**将组件渲染的内容保存到 SVG 图片中，下次渲染时直接使用准备好的图片。** 游戏中的爆炸效果、地形元素等组件的内容较为固定，其内容保存为图片后可以被多次复用。该优化实现代码如下：（[完整版代码](https://github.com/shinima/battle-city/blob/master/app/hocs/Image.tsx)）
 
 ```jsx
-import { renderToString } from 'react-dom/server'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const svgns = 'http://www.w3.org/2000/svg'
 // imageKey 到 object-url 的映射，一个 imageKey 对应了一张保存好的图片
@@ -120,7 +120,7 @@ class Image extends React.PureComponent {
     const { imageKey, width, height, transform, children } = this.props
     if (!cache.has(imageKey)) {
       const open = `<svg xmlns="${svgns}" width="${width}" height="${height}">`
-      const string = renderToString(<g>children</g>)
+      const string = renderToStaticMarkup(<g>children</g>)
       const close = '</svg>'
       const markup = open + string + close
       // 使用 react-dom/server 来生成 SVG 图片
@@ -182,8 +182,8 @@ interface State {
 实现游戏逻辑比较重要的一点是，每一个 saga 实例都需要有明确的生命周期，这意味着我们需要回答下面这些问题：
 
 * 一个运行中的 saga 实例代表着什么？
-  * 例如一个 `humanPlayerSaga` 实例代表「一个正在游戏中的人类玩家」;
-  * 一个 `humanController` 实例代表「一个人类玩家的控制器」。
+  * 例如一个 `playerSaga` 实例代表「一个正在游戏中的人类玩家」;
+  * 一个 `playerController` 实例代表「一个人类玩家的控制器」。
 * 什么时候创建 saga 实例？什么时候结束 saga 运行？
 * 一个 saga 实例运行之后可能会管理一些游戏元素（子弹/地形/坦克等），如果该 saga 实例被 cancel，那么需要执行哪些清理操作？（cancel 时的清理操作一般放在 finally block 中）
 * 一个 saga 实例运行时，可以保证哪些条件一定满足？
@@ -191,7 +191,7 @@ interface State {
 
 ## 五、电脑玩家逻辑
 
-本复刻版中的 AI 目前还不是特别完善，和原版差别比较大，可能目前 AI 有些过强了。AI 仍然是基于 redux-saga 进行实现，大致模型可以认为是一个简单的分层状态机。复刻版对坦克控制（包括方向控制和开火控制）进行了抽象，人类玩家和电脑玩家拥有统一的控制器接口。该统一接口的抽象级别较低，只有三个指令：前进 / 转向 / 开火。类 `AITankCtx` 基于该统一接口实现了 moveTo 指令，上层逻辑使用 moveTo 指令可以使坦克移动到指定位置。不过 moveTo 指令只支持横向和纵向的移动，且无法判断障碍物。函数 `followPath` 基于 moveTo 实现了坦克路径跟随功能，方便上层逻辑实现 AI。总体来说，随着不断的封装，指令的抽象级别越来越高。
+本复刻版中的 AI 目前还不是特别完善，和原版差别比较大，可能目前 AI 有些过强了。AI 仍然是基于 redux-saga 进行实现，大致模型可以认为是一个简单的分层状态机。复刻版对坦克控制（包括方向控制和开火控制）进行了抽象，人类玩家和电脑玩家拥有统一的控制器接口。该统一接口的抽象级别较低，只有三个指令：前进 / 转向 / 开火。类 `Bot` 基于该统一接口实现了 moveTo 指令，上层逻辑使用 moveTo 指令可以使坦克移动到指定位置。不过 moveTo 指令只支持横向和纵向的移动，且无法判断障碍物。函数 `followPath` 基于 moveTo 实现了坦克路径跟随功能，方便上层逻辑实现 AI。总体来说，随着不断的封装，指令的抽象级别越来越高。
 
 为了实现 AI 逻辑，复刻版还提供了很多计算环境信息的函数，例如「坦克可以移动到哪些位置？」、「哪些位置可以击中老鹰，如果可以的话，需要多少次开火？」，「电脑玩家坦克和人类玩家坦克的相对位置，如果一方开火的话是否能够直接击中另一方？」。当然复刻版还实现了基于 BFS 的寻路算法，用来寻找一条当前位置到目标位置的路径。
 

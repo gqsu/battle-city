@@ -1,5 +1,6 @@
 import { put } from 'redux-saga/effects'
 import { FlickerRecord } from '../../types'
+import * as actions from '../../utils/actions'
 import { frame as f, getNextId } from '../../utils/common'
 import Timing from '../../utils/Timing'
 
@@ -24,15 +25,9 @@ export default function* flickerSaga(x: number, y: number, spawnSpeed: number) {
 
   try {
     yield* flickerShapeTiming.accelerate(spawnSpeed).iter(function*(shape) {
-      yield put<Action.AddOrUpdateFlickerAction>({
-        type: 'ADD_OR_UPDATE_FLICKER',
-        flicker: new FlickerRecord({ flickerId, x, y, shape }),
-      })
+      yield put(actions.setFlicker(new FlickerRecord({ flickerId, x, y, shape })))
     })
   } finally {
-    yield put<Action.RemoveFlickerAction>({
-      type: 'REMOVE_FLICKER',
-      flickerId,
-    })
+    yield put(actions.removeFlicker(flickerId))
   }
 }

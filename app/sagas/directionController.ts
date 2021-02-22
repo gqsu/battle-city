@@ -1,8 +1,9 @@
 import { put, select, take } from 'redux-saga/effects'
-import { Input, TankRecord } from '../types'
+import { Input, State, TankRecord } from '../types'
+import * as actions from '../utils/actions'
+import { A } from '../utils/actions'
 import canTankMove from '../utils/canTankMove'
 import { ceil8, floor8, getDirectionInfo, isPerpendicular, round8 } from '../utils/common'
-import * as selectors from '../utils/selectors'
 import values from '../utils/values'
 
 // 坦克进行转向时, 需要对坐标进行处理
@@ -28,65 +29,48 @@ function* getReservedTank(tank: TankRecord) {
   }
 }
 
-function move(tank: TankRecord): Action.Move {
-  return {
-    type: 'MOVE',
-    tankId: tank.tankId,
-    x: tank.x,
-    y: tank.y,
-    rx: tank.rx,
-    ry: tank.ry,
-    direction: tank.direction,
-  }
-}
-
 export default function* directionController(
-  playerName: string,
+  tankId: TankId,
   getPlayerInput: (tank: TankRecord, delta: number) => Input,
 ) {
   while (true) {
-    const { delta }: Action.TickAction = yield take('TICK')
-    const tank: TankRecord = yield select(selectors.playerTank, playerName)
-    if (tank == null || tank.frozenTimeout > 0) {
-      continue
-    }
-    const input: Input = getPlayerInput(tank, delta)
+    const { delta }: actions.Tick = yield take(A.Tick)
+    const tank = yield select((s: State) => s.tanks.get(tankId))
 
-    let nextFrozenTimeout = tank.frozenTimeout <= 0 ? 0 : tank.frozenTimeout - delta
+    const input: Input = getPlayerInput(tank, delta)
 
     if (input == null) {
       if (tank.moving) {
-        yield put({ type: 'STOP_MOVE', tankId: tank.tankId })
+        yield put(actions.stopMove(tank.tankId))
       }
     } else if (input.type === 'turn') {
       if (isPerpendicular(input.direction, tank.direction)) {
-        yield put(move(tank.useReservedXY().set('direction', input.direction)))
+        yield put(actions.move(tank.useReservedXY().set('direction', input.direction)))
       } else {
-        yield put(move(tank.set('direction', input.direction)))
+        yield put(actions.move(tank.set('direction', input.direction)))
       }
     } else if (input.type === 'forward') {
-      const speed = values.moveSpeed(tank)
-      const distance = Math.min(delta * speed, input.maxDistance || Infinity)
+      if (tank.frozenTimeout === 0) {
+        const speed = values.moveSpeed(tank)
+        const distance = Math.min(delta * speed, input.maxDistance || Infinity)
 
-      const { xy, updater } = getDirectionInfo(tank.direction)
-      const movedTank = tank.update(xy, updater(distance))
-      if (yield select(canTankMove, movedTank)) {
-        const reservedTank: TankRecord = yield getReservedTank(movedTank)
-        yield put(move(movedTank.merge({ rx: reservedTank.x, ry: reservedTank.y })))
-        if (!tank.moving) {
-          yield put({ type: 'START_MOVE', tankId: tank.tankId })
+        const { xy, updater } = getDirectionInfo(tank.direction)
+        const movedTank = tank.update(xy, updater(distance))
+        if (yield select(canTankMove, movedTank)) {
+          const reservedTank: TankRecord = yield getReservedTank(movedTank)
+          yield put(actions.move(movedTank.merge({ rx: reservedTank.x, ry: reservedTank.y })))
+          if (!tank.moving) {
+            yield put(actions.startMove(tank.tankId))
+          }
         }
       }
     } else {
       throw new Error(`Invalid input: ${input}`)
     }
 
+    const nextFrozenTimeout = tank.frozenTimeout <= 0 ? 0 : tank.frozenTimeout - delta
     if (tank.frozenTimeout !== nextFrozenTimeout) {
-      yield put<Action.SetFrozenTimeoutAction>({
-        type: 'SET_FROZEN_TIMEOUT',
-        tankId: tank.tankId,
-        frozenTimeout: nextFrozenTimeout,
-      })
+      yield put(actions.setFrozenTimeout(tank.tankId, nextFrozenTimeout))
     }
   }
 }

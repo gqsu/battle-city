@@ -1,15 +1,18 @@
 import { replace } from 'react-router-redux'
-import { put, race, select, take } from 'redux-saga/effects'
-import { delay } from 'redux-saga/utils'
+import { all, put, race, select, take } from 'redux-saga/effects'
+import { delay } from 'redux-saga/effects'
 import { State } from '../reducers'
 import TextRecord from '../types/TextRecord'
+import * as actions from '../utils/actions'
+import { A } from '../utils/actions'
 import { getNextId } from '../utils/common'
-import { BLOCK_SIZE } from '../utils/constants'
+import { BLOCK_SIZE, PLAYER_CONFIGS } from '../utils/constants'
+import * as selectors from '../utils/selectors'
 import Timing from '../utils/Timing'
-import AIMasterSaga from './AIMasterSaga'
+import botMasterSaga from './botMasterSaga'
 import bulletsSaga from './bulletsSaga'
 import animateTexts from './common/animateTexts'
-import humanPlayerSaga from './humanPlayerSaga'
+import playerSaga from './playerSaga'
 import powerUpManager from './powerUpManager'
 import stageSaga, { StageResult } from './stageSaga'
 import tickEmitter from './tickEmitter'
@@ -19,35 +22,32 @@ function* animateGameover() {
   const textId1 = getNextId('text')
   const textId2 = getNextId('text')
   try {
-    yield put<Action>({
-      type: 'SET_TEXT',
-      text: new TextRecord({
-        textId: textId1,
-        content: 'game',
-        fill: 'red',
-        x: BLOCK_SIZE * 6.5,
-        y: BLOCK_SIZE * 13,
-      }),
+    const text1 = new TextRecord({
+      textId: textId1,
+      content: 'game',
+      fill: 'red',
+      x: BLOCK_SIZE * 6.5,
+      y: BLOCK_SIZE * 13,
     })
-    yield put<Action>({
-      type: 'SET_TEXT',
-      text: new TextRecord({
-        textId: textId2,
-        content: 'over',
-        fill: 'red',
-        x: BLOCK_SIZE * 6.5,
-        y: BLOCK_SIZE * 13.5,
-      }),
+    yield put(actions.setText(text1))
+    const text2 = new TextRecord({
+      textId: textId2,
+      content: 'over',
+      fill: 'red',
+      x: BLOCK_SIZE * 6.5,
+      y: BLOCK_SIZE * 13.5,
     })
-    yield* animateTexts([textId1, textId2], {
+    yield put(actions.setText(text2))
+    yield put(actions.playSound('game_over'))
+    yield animateTexts([textId1, textId2], {
       direction: 'up',
       distance: BLOCK_SIZE * 6,
       duration: 2000,
     })
     yield Timing.delay(500)
   } finally {
-    yield put<Action>({ type: 'REMOVE_TEXT', textId: textId1 })
-    yield put<Action>({ type: 'REMOVE_TEXT', textId: textId2 })
+    yield put(actions.removeText(textId1))
+    yield put(actions.removeText(textId2))
   }
 }
 
@@ -70,9 +70,9 @@ function* stageFlow(startStageIndex: number) {
  *  game-stage调用stage-saga来运行不同的关卡
  *  并根据stage-saga返回的结果选择继续下一个关卡, 或是选择游戏结束
  */
-export default function* gameSaga(action: Action.StartGame | { type: 'RESET_GAME' }) {
-  if (action.type === 'RESET_GAME') {
-    console.log('GAME RESET')
+export default function* gameSaga(action: actions.StartGame | actions.ResetGame) {
+  if (action.type === A.ResetGame) {
+    DEV.LOG && console.log('GAME RESET')
     return
   }
 
@@ -81,16 +81,21 @@ export default function* gameSaga(action: Action.StartGame | { type: 'RESET_GAME
   yield delay(0)
   DEV.LOG && console.log('GAME STARTED')
 
-  const result = yield race<any>({
+  const players = [playerSaga('player-1', PLAYER_CONFIGS.player1)]
+  if (yield select(selectors.isInMultiPlayersMode)) {
+    players.push(playerSaga('player-2', PLAYER_CONFIGS.player2))
+  }
+
+  const result = yield race({
     tick: tickEmitter({ bindESC: true }),
-    human: humanPlayerSaga('player-1', 'yellow'),
-    ai: AIMasterSaga(),
+    players: all(players),
+    ai: botMasterSaga(),
     powerUp: powerUpManager(),
     bullets: bulletsSaga(),
     // 上面几个 saga 在一个 gameSaga 的生命周期内被认为是后台服务
     // 当 stage-flow 退出（或者是用户直接离开了game-scene）的时候，自动取消上面几个后台服务
     flow: stageFlow(action.stageIndex),
-    leave: take('LEAVE_GAME_SCENE'),
+    leave: take(A.LeaveGameScene),
   })
 
   if (DEV.LOG) {
@@ -101,8 +106,9 @@ export default function* gameSaga(action: Action.StartGame | { type: 'RESET_GAME
 
   if (result.flow) {
     DEV.LOG && console.log('GAME ENDED')
-    yield put(replace('/gameover'))
+    const { router }: State = yield select()
+    yield put(replace(`/gameover${router.location.search}`))
   }
-  yield put<Action>({ type: 'BEFORE_END_GAME' })
-  yield put<Action>({ type: 'END_GAME' })
+  yield put(actions.beforeEndGame())
+  yield put(actions.endGame())
 }
